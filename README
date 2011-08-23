@@ -1,0 +1,47 @@
+Regulatory Simulator
+--------------------
+
+This is a regulatory simulator used to help support wireless technologies that
+typically require some sort of kernels or userspace work. This work is entirely
+in userspace and is distributed under the ISC permissive licensed in hopes that
+any project can make use of it. The intent is to enable developers to contribute
+to a framework to help test and advance regulatory code to enable communities
+and developers to cherry pick code out to their own solutions, whether that be
+in proprietary or open kernels, proprietary or open firmware, or even hardware,
+whatever.
+
+We follow the Signed-off-by tradition used in Linux kernel development to help
+ensure we keep our files permissively licensed and that no one makes
+contributions that they are not allowed to.
+
+Signed-off-by meaning
+---------------------
+
+The Signed-off-by is defined by the Developer's Certificate of Origin 1.1
+which is below:
+
+Developer's Certificate of Origin 1.1
+
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it.
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
