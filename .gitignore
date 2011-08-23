@@ -1,0 +1,7 @@
+*~
+*.swp
+regsim
+Module.symvers
+module.order
+.pc
+

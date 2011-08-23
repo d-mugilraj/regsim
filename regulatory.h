@@ -1,7 +1,18 @@
 #ifndef __NET_REGULATORY_H
 #define __NET_REGULATORY_H
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+#include "ieee80211.h"
+#include "list.h"
+
 /*
  * regulatory support structures
+ *
+ * This file contains data which is independent of any infrastructure
+ * definitions of a channel or a wireless device.
  *
  * Copyright 2008-2009	Luis R. Rodriguez <mcgrof@qca.qualcomm.com>
  *
@@ -41,7 +52,7 @@ enum environment_cap {
  * 	and potentially inform users of which devices specifically
  * 	cased the conflicts.
  * @initiator: indicates who sent this request, could be any of
- * 	of those set in nl80211_reg_initiator (%NL80211_REGDOM_SET_BY_*)
+ * 	of those set in ieee80211_reg_initiator (%NL80211_REGDOM_SET_BY_*)
  * @alpha2: the ISO / IEC 3166 alpha2 country code of the requested
  * 	regulatory domain. We have a few special codes:
  * 	00 - World regulatory domain
@@ -65,33 +76,33 @@ enum environment_cap {
  */
 struct regulatory_request {
 	int wiphy_idx;
-	enum nl80211_reg_initiator initiator;
+	enum ieee80211_reg_initiator initiator;
 	char alpha2[2];
 	bool intersect;
 	bool processed;
 	enum environment_cap country_ie_env;
-	struct list_head list;
+	struct dl_list list;
 };
 
 struct ieee80211_freq_range {
-	u32 start_freq_khz;
-	u32 end_freq_khz;
-	u32 max_bandwidth_khz;
+	uint32_t start_freq_khz;
+	uint32_t end_freq_khz;
+	uint32_t max_bandwidth_khz;
 };
 
 struct ieee80211_power_rule {
-	u32 max_antenna_gain;
-	u32 max_eirp;
+	uint32_t max_antenna_gain;
+	uint32_t max_eirp;
 };
 
 struct ieee80211_reg_rule {
 	struct ieee80211_freq_range freq_range;
 	struct ieee80211_power_rule power_rule;
-	u32 flags;
+	uint32_t flags;
 };
 
 struct ieee80211_regdomain {
-	u32 n_reg_rules;
+	uint32_t n_reg_rules;
 	char alpha2[2];
 	struct ieee80211_reg_rule reg_rules[];
 };
