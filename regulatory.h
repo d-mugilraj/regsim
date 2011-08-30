@@ -7,6 +7,7 @@
 
 #include "ieee80211.h"
 #include "list.h"
+#include "c-hacks.h"
 
 /*
  * regulatory support structures

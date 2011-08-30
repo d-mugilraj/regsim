@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <errno.h>
 
 #include "regulatory.h"
 
@@ -34,6 +35,27 @@ static const struct ieee80211_regdomain world_regdom = {
 	}
 };
 
+/*
+ * Purpose: test a regulatory domain with overlapping frequency
+ * rules.
+ */
+static const struct ieee80211_regdomain test_regdom_01 = {
+	.n_reg_rules = 5,
+	.alpha2 =  "01",
+	.reg_rules = {
+		/* Channels (149 - 161], allows only 20 MHz wide channels */
+		REG_RULE(5745-10, 5805+10, 20, 6, 15, 0),
+		/* Channels (153 - 165], allows 40 MHz wide channels */
+		REG_RULE(5765-10, 5825+10, 40, 6, 20, 0),
+	}
+};
+
+/*
+ * XXX: create a regulatory domain and change structure to enable
+ * to specifify that at a given bandwidth you can use a specific
+ * output EIRP but at another bandwidth there is another max EIRP.
+ */
+
 static const struct ieee80211_regdomain *ieee80211_world_regdom =
 	&world_regdom;
 
@@ -44,6 +66,159 @@ bool is_world_regdom(const char *alpha2)
 	if (alpha2[0] == '0' && alpha2[1] == '0')
 		return true;
 	return false;
+}
+
+/* Sanity check on a regulatory rule */
+static bool is_valid_reg_rule(const struct ieee80211_reg_rule *rule)
+{
+	const struct ieee80211_freq_range *freq_range = &rule->freq_range;
+	uint32_t freq_diff;
+
+	if (freq_range->start_freq_khz <= 0 || freq_range->end_freq_khz <= 0)
+		return false;
+
+	if (freq_range->start_freq_khz > freq_range->end_freq_khz)
+		return false;
+
+	freq_diff = freq_range->end_freq_khz - freq_range->start_freq_khz;
+
+	if (freq_range->end_freq_khz <= freq_range->start_freq_khz ||
+			freq_range->max_bandwidth_khz > freq_diff)
+		return false;
+
+	return true;
+}
+
+static bool is_valid_rd(const struct ieee80211_regdomain *rd)
+{
+	const struct ieee80211_reg_rule *reg_rule = NULL;
+	unsigned int i;
+
+	if (!rd->n_reg_rules)
+		return false;
+
+	/*
+	 * we use 32 for now as the maximum under the assumption we
+	 * don't want to allocate memory for more. Right now at least
+	 * on the Linux kernel we dynamically allocate memory for
+	 * a regulatory domain so we decided to limit this to 32.
+	 */
+	if (rd->n_reg_rules > 32)
+		return false;
+
+	for (i = 0; i < rd->n_reg_rules; i++) {
+		reg_rule = &rd->reg_rules[i];
+		if (!is_valid_reg_rule(reg_rule))
+			return false;
+	}
+
+	return true;
+}
+
+static bool reg_does_bw_fit(const struct ieee80211_freq_range *freq_range,
+			    uint32_t center_freq_khz,
+			    uint32_t bw_khz)
+{
+	uint32_t start_freq_khz, end_freq_khz;
+
+	start_freq_khz = center_freq_khz - (bw_khz/2);
+	end_freq_khz = center_freq_khz + (bw_khz/2);
+
+	if (start_freq_khz >= freq_range->start_freq_khz &&
+	    end_freq_khz <= freq_range->end_freq_khz)
+		return true;
+
+	return false;
+}
+
+/**
+ * freq_in_rule_band - tells us if a frequency is in a frequency band
+ * @freq_range: frequency rule we want to query
+ * @freq_khz: frequency we are inquiring about
+ *
+ * This lets us know if a specific frequency rule is or is not relevant to
+ * a specific frequency's band. Bands are device specific and artificial
+ * definitions (the "2.4 GHz band" and the "5 GHz band"), however it is
+ * safe for now to assume that a frequency rule should not be part of a
+ * frequency's band if the start freq or end freq are off by more than 2 GHz.
+ * This resolution can be lowered and should be considered as we add
+ * regulatory rule support for other "bands".
+ **/
+static bool freq_in_rule_band(const struct ieee80211_freq_range *freq_range,
+			      uint32_t freq_khz)
+{
+#define ONE_GHZ_IN_KHZ	1000000
+	if (abs(freq_khz - freq_range->start_freq_khz) <= (2 * ONE_GHZ_IN_KHZ))
+		return true;
+	if (abs(freq_khz - freq_range->end_freq_khz) <= (2 * ONE_GHZ_IN_KHZ))
+		return true;
+	return false;
+#undef ONE_GHZ_IN_KHZ
+}
+
+static int freq_reg_info_regd(uint32_t center_freq,
+			      uint32_t desired_bw_khz,
+			      const struct ieee80211_reg_rule **reg_rule,
+			      const struct ieee80211_regdomain *custom_regd)
+{
+	int i;
+	bool band_rule_found = false;
+	const struct ieee80211_regdomain *regd;
+	bool bw_fits = false;
+
+	if (!desired_bw_khz)
+		desired_bw_khz = MHZ_TO_KHZ(20);
+
+	regd = custom_regd ? custom_regd : ieee80211_world_regdom;
+
+	/*
+	 * XXX: Follow the device's regulatory domain, if present, unless a
+	 * country IE has been processed or a user wants to help complaince
+	 * further
+	 */
+
+	if (!regd)
+		return -EINVAL;
+
+	for (i = 0; i < regd->n_reg_rules; i++) {
+		const struct ieee80211_reg_rule *rr;
+		const struct ieee80211_freq_range *fr = NULL;
+
+		rr = &regd->reg_rules[i];
+		fr = &rr->freq_range;
+
+		/*
+		 * We only need to know if one frequency rule was
+		 * was in center_freq's band, that's enough, so lets
+		 * not overwrite it once found
+		 */
+		if (!band_rule_found)
+			band_rule_found = freq_in_rule_band(fr, center_freq);
+
+		bw_fits = reg_does_bw_fit(fr,
+					  center_freq,
+					  desired_bw_khz);
+
+		if (band_rule_found && bw_fits) {
+			*reg_rule = rr;
+			return 0;
+		}
+	}
+
+	if (!band_rule_found)
+		return -ERANGE;
+
+	return -EINVAL;
+}
+
+int freq_reg_info(uint32_t center_freq,
+		  uint32_t desired_bw_khz,
+		  const struct ieee80211_reg_rule **reg_rule)
+{
+	return freq_reg_info_regd(center_freq,
+				  desired_bw_khz,
+				  reg_rule,
+				  NULL);
 }
 
 static void print_rd_rules(const struct ieee80211_regdomain *rd)
@@ -91,7 +266,107 @@ static void print_regdomain(const struct ieee80211_regdomain *rd)
 	print_rd_rules(rd);
 }
 
+/* Sweep test on all possible combinations */
+static void __test_regdom(const struct ieee80211_regdomain *rd)
+{
+	/*
+	 * XXX: Whether or not we support HT40 will depend on HT+ or HT-
+	 * so a channel map will need to be built, the same will be required
+	 * for new 802.11ac HT80 and so on
+	 */
+	const uint32_t desired_bws_khz[] = {
+		MHZ_TO_KHZ(5),
+		MHZ_TO_KHZ(10),
+		MHZ_TO_KHZ(20),
+		MHZ_TO_KHZ(40),
+	};
+	uint32_t desired_bw_khz;
+	const uint32_t center_freqs_khz[] = {
+		MHZ_TO_KHZ(2412),
+		MHZ_TO_KHZ(2417),
+		MHZ_TO_KHZ(2422),
+		MHZ_TO_KHZ(2427),
+		MHZ_TO_KHZ(2432),
+		MHZ_TO_KHZ(2437),
+		MHZ_TO_KHZ(2442),
+		MHZ_TO_KHZ(2447),
+		MHZ_TO_KHZ(2452),
+		MHZ_TO_KHZ(2457),
+		MHZ_TO_KHZ(2462),
+		MHZ_TO_KHZ(2467),
+		MHZ_TO_KHZ(2472),
+		MHZ_TO_KHZ(5180),
+		MHZ_TO_KHZ(5200),
+		MHZ_TO_KHZ(5220),
+		MHZ_TO_KHZ(5240),
+		MHZ_TO_KHZ(5260),
+		MHZ_TO_KHZ(5280),
+		MHZ_TO_KHZ(5300),
+		MHZ_TO_KHZ(5320),
+		MHZ_TO_KHZ(5500),
+		MHZ_TO_KHZ(5520),
+		MHZ_TO_KHZ(5540),
+		MHZ_TO_KHZ(5560),
+		MHZ_TO_KHZ(5580),
+		MHZ_TO_KHZ(5600),
+		MHZ_TO_KHZ(5620),
+		MHZ_TO_KHZ(5640),
+		MHZ_TO_KHZ(5660),
+		MHZ_TO_KHZ(5680),
+		MHZ_TO_KHZ(5700),
+		MHZ_TO_KHZ(5745),
+		MHZ_TO_KHZ(5765),
+		MHZ_TO_KHZ(5785),
+		MHZ_TO_KHZ(5805),
+		MHZ_TO_KHZ(5825),
+	};
+	uint32_t center_freq_khz;
+	const struct ieee80211_reg_rule *reg_rule = NULL;
+	unsigned int x, y;
+	int r;
+
+	printf("%10s\t%10s\t%10s\n", "Center freq", "Bandwidth", "Status");
+
+	/* XXX: add target output power */
+	for (x = 0; x < ARRAY_SIZE(desired_bws_khz); x++) {
+		desired_bw_khz = desired_bws_khz[x];
+		for (y = 0; y < ARRAY_SIZE(center_freqs_khz); y++) {
+			center_freq_khz = center_freqs_khz[y];
+			r = freq_reg_info(center_freq_khz,
+					  desired_bw_khz,
+					  &reg_rule);
+			printf("%10d\t%10d\t", center_freq_khz, desired_bw_khz);
+
+			if (r)
+				printf("%10s", "Disabled");
+			else
+				printf("%10s", "Enabled");
+			printf("\n");
+		}
+	}
+}
+
+static void test_regdom(const struct ieee80211_regdomain *rd)
+{
+	if (!is_valid_rd(rd)) {
+		printf("Invalid regulatory domain\n");
+		return;
+	}
+
+	print_regdomain(rd);
+	__test_regdom(rd);
+}
+
 int main(void)
 {
-	print_regdomain(ieee80211_world_regdom);
+	const struct ieee80211_regdomain *regdoms[] = {
+		ieee80211_world_regdom,
+		&test_regdom_01,
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(regdoms); i++)
+		test_regdom(regdoms[i]);
+
+	return 0;
 }
