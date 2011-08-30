@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #include "regulatory.h"
 
@@ -266,8 +267,8 @@ static void print_regdomain(const struct ieee80211_regdomain *rd)
 	print_rd_rules(rd);
 }
 
-/* Sweep test on all possible combinations */
-static void __test_regdom(const struct ieee80211_regdomain *rd)
+static int test_freq_khz_on_rd(uint32_t center_freq_khz,
+			       const struct ieee80211_regdomain *rd)
 {
 	/*
 	 * XXX: Whether or not we support HT40 will depend on HT+ or HT-
@@ -281,6 +282,42 @@ static void __test_regdom(const struct ieee80211_regdomain *rd)
 		MHZ_TO_KHZ(40),
 	};
 	uint32_t desired_bw_khz;
+	const struct ieee80211_reg_rule *reg_rule = NULL;
+	unsigned int x;
+	bool one_bw_works = false, last_bw_worked = false;
+	int r;
+
+	for (x = 0; x < ARRAY_SIZE(desired_bws_khz); x++) {
+		desired_bw_khz = desired_bws_khz[x];
+		r = freq_reg_info_regd(center_freq_khz,
+				       desired_bw_khz,
+				       &reg_rule,
+				       rd);
+		if (r)
+			continue;
+
+		if (last_bw_worked)
+			printf(" ");
+
+		last_bw_worked = true;
+
+		if (!one_bw_works) {
+			one_bw_works = true;
+			printf("%10d:\t", KHZ_TO_MHZ(center_freq_khz));
+		}
+
+		printf("%d", KHZ_TO_MHZ(desired_bw_khz));
+	}
+
+	if (!one_bw_works)
+		return -EINVAL;
+
+	return 0;
+}
+
+/* Sweep test on all possible combinations */
+static void __test_regdom(const struct ieee80211_regdomain *rd)
+{
 	const uint32_t center_freqs_khz[] = {
 		MHZ_TO_KHZ(2412),
 		MHZ_TO_KHZ(2417),
@@ -321,28 +358,17 @@ static void __test_regdom(const struct ieee80211_regdomain *rd)
 		MHZ_TO_KHZ(5825),
 	};
 	uint32_t center_freq_khz;
-	const struct ieee80211_reg_rule *reg_rule = NULL;
-	unsigned int x, y;
+	unsigned int i;
 	int r;
 
-	printf("%10s\t%10s\t%10s\n", "Center freq", "Bandwidth", "Status");
+	printf("%10s\t%10s\n", "Center freq", "Bandwidths");
 
 	/* XXX: add target output power */
-	for (x = 0; x < ARRAY_SIZE(desired_bws_khz); x++) {
-		desired_bw_khz = desired_bws_khz[x];
-		for (y = 0; y < ARRAY_SIZE(center_freqs_khz); y++) {
-			center_freq_khz = center_freqs_khz[y];
-			r = freq_reg_info(center_freq_khz,
-					  desired_bw_khz,
-					  &reg_rule);
-			printf("%10d\t%10d\t", center_freq_khz, desired_bw_khz);
-
-			if (r)
-				printf("%10s", "Disabled");
-			else
-				printf("%10s", "Enabled");
+	for (i = 0; i < ARRAY_SIZE(center_freqs_khz); i++) {
+		center_freq_khz = center_freqs_khz[i];
+		r = test_freq_khz_on_rd(center_freq_khz, rd);
+		if (!r)
 			printf("\n");
-		}
 	}
 }
 
