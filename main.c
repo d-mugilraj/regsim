@@ -302,11 +302,18 @@ static int test_freq_khz_on_rd(uint32_t center_freq_khz,
 		last_bw_worked = true;
 
 		if (!one_bw_works) {
+			uint32_t center_freq_mhz = KHZ_TO_MHZ(center_freq_khz);
+
 			one_bw_works = true;
-			printf("%10d:\t", KHZ_TO_MHZ(center_freq_khz));
+
+			printf("%12d\t%15d\t\t",
+			       ieee80211_frequency_to_channel(center_freq_mhz),
+			       center_freq_mhz);
 		}
 
-		printf("%d", KHZ_TO_MHZ(desired_bw_khz));
+		printf("(@%d, %d)",
+		       KHZ_TO_MHZ(desired_bw_khz),
+		       MBM_TO_DBM(reg_rule->power_rule.max_eirp));
 	}
 
 	if (!one_bw_works)
@@ -361,7 +368,7 @@ static void __test_regdom(const struct ieee80211_regdomain *rd)
 	unsigned int i;
 	int r;
 
-	printf("%10s\t%10s\n", "Center freq", "Bandwidths");
+	printf("%12s\t%15s\t\t%16s\n", "IEEE-Channel", "Center-freq-MHz", "(@Bandwidth MHz, Max EIRP dBm)");
 
 	/* XXX: add target output power */
 	for (i = 0; i < ARRAY_SIZE(center_freqs_khz); i++) {
@@ -374,12 +381,14 @@ static void __test_regdom(const struct ieee80211_regdomain *rd)
 
 static void test_regdom(const struct ieee80211_regdomain *rd)
 {
+	printf("=================================================================================\n");
 	if (!is_valid_rd(rd)) {
 		printf("Invalid regulatory domain\n");
 		return;
 	}
 
 	print_regdomain(rd);
+	printf("---------------------------------------------------------------------------------\n");
 	__test_regdom(rd);
 }
 
