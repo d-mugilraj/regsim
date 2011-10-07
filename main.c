@@ -315,14 +315,14 @@ static int test_freq_khz_on_rd(uint32_t center_freq_khz,
 
 			one_bw_works = true;
 
-			printf("%12d\t%15d\t\t",
+			printf("%12d\t%15d\t\t%15d\t\t",
 			       ieee80211_frequency_to_channel(center_freq_mhz),
-			       center_freq_mhz);
+			       center_freq_mhz,
+			       MBM_TO_DBM(target_eirp_mbm));
 		}
 
-		printf("(@%d, %d-%d)",
+		printf("(@%d, %d)",
 		       KHZ_TO_MHZ(desired_bw_khz),
-		       MBM_TO_DBM(target_eirp_mbm),
 		       MBM_TO_DBM(reg_rule->power_rule.max_eirp));
 	}
 
@@ -390,7 +390,11 @@ static void __test_regdom(const struct ieee80211_regdomain *rd)
 	unsigned int i, j;
 	int r;
 
-	printf("%12s\t%15s\t\t%16s\n", "IEEE-Channel", "Center-freq-MHz", "(@Bandwidth MHz, Target EIRP dBm - Max EIRP dBm)");
+	printf("%12s\t%15s\t\t%15s\t\t%16s\n",
+	       "IEEE-Channel",
+	       "Center-freq-MHz",
+	       "Target EIRP dBm",
+	       "(@Bandwidth MHz, Max EIRP dBm)");
 
 	/* XXX: add target output power */
 	for (i = 0; i < ARRAY_SIZE(center_freqs_khz); i++) {
