@@ -38,10 +38,11 @@ static const struct ieee80211_regdomain world_regdom = {
 
 /*
  * Purpose: test a regulatory domain with overlapping frequency
- * rules.
+ * rules. This allows low for different max EIRP values depending
+ * on the assumed max bandwidth used.
  */
 static const struct ieee80211_regdomain test_regdom_01 = {
-	.n_reg_rules = 5,
+	.n_reg_rules = 2,
 	.alpha2 =  "01",
 	.reg_rules = {
 		/* Channels (149 - 161], allows only 20 MHz wide channels */
@@ -158,6 +159,7 @@ static bool freq_in_rule_band(const struct ieee80211_freq_range *freq_range,
 }
 
 static int freq_reg_info_regd(uint32_t center_freq,
+			      int target_eirp_mbm,
 			      uint32_t desired_bw_khz,
 			      const struct ieee80211_reg_rule **reg_rule,
 			      const struct ieee80211_regdomain *custom_regd)
@@ -184,9 +186,11 @@ static int freq_reg_info_regd(uint32_t center_freq,
 	for (i = 0; i < regd->n_reg_rules; i++) {
 		const struct ieee80211_reg_rule *rr;
 		const struct ieee80211_freq_range *fr = NULL;
+		const struct ieee80211_power_rule *pr = NULL;
 
 		rr = &regd->reg_rules[i];
 		fr = &rr->freq_range;
+		pr = &rr->power_rule;
 
 		/*
 		 * We only need to know if one frequency rule was
@@ -200,7 +204,8 @@ static int freq_reg_info_regd(uint32_t center_freq,
 					  center_freq,
 					  desired_bw_khz);
 
-		if (band_rule_found && bw_fits) {
+		if (band_rule_found && bw_fits &&
+		    target_eirp_mbm <= pr->max_eirp) {
 			*reg_rule = rr;
 			return 0;
 		}
@@ -213,10 +218,12 @@ static int freq_reg_info_regd(uint32_t center_freq,
 }
 
 int freq_reg_info(uint32_t center_freq,
+		  int target_eirp_mbm,
 		  uint32_t desired_bw_khz,
 		  const struct ieee80211_reg_rule **reg_rule)
 {
 	return freq_reg_info_regd(center_freq,
+				  target_eirp_mbm,
 				  desired_bw_khz,
 				  reg_rule,
 				  NULL);
@@ -268,6 +275,7 @@ static void print_regdomain(const struct ieee80211_regdomain *rd)
 }
 
 static int test_freq_khz_on_rd(uint32_t center_freq_khz,
+			       int target_eirp_mbm,
 			       const struct ieee80211_regdomain *rd)
 {
 	/*
@@ -290,6 +298,7 @@ static int test_freq_khz_on_rd(uint32_t center_freq_khz,
 	for (x = 0; x < ARRAY_SIZE(desired_bws_khz); x++) {
 		desired_bw_khz = desired_bws_khz[x];
 		r = freq_reg_info_regd(center_freq_khz,
+				       target_eirp_mbm,
 				       desired_bw_khz,
 				       &reg_rule,
 				       rd);
@@ -311,8 +320,9 @@ static int test_freq_khz_on_rd(uint32_t center_freq_khz,
 			       center_freq_mhz);
 		}
 
-		printf("(@%d, %d)",
+		printf("(@%d, %d-%d)",
 		       KHZ_TO_MHZ(desired_bw_khz),
+		       MBM_TO_DBM(target_eirp_mbm),
 		       MBM_TO_DBM(reg_rule->power_rule.max_eirp));
 	}
 
@@ -365,17 +375,34 @@ static void __test_regdom(const struct ieee80211_regdomain *rd)
 		MHZ_TO_KHZ(5825),
 	};
 	uint32_t center_freq_khz;
-	unsigned int i;
+	const uint32_t target_eirps_mbm[] = {
+		DBM_TO_MBM(5),
+		DBM_TO_MBM(20), /* typical */
+		/*
+		 * 30 dBm happens to be the max in some regulatory domains
+		 * under the assumption of 6 dBi antenna gain.
+		 */
+		DBM_TO_MBM(30),
+		DBM_TO_MBM(31.5), /* MAX_RATE_POWER from Atheros hardware */
+		DBM_TO_MBM(36),
+	};
+	int target_eirp_mbm;
+	unsigned int i, j;
 	int r;
 
-	printf("%12s\t%15s\t\t%16s\n", "IEEE-Channel", "Center-freq-MHz", "(@Bandwidth MHz, Max EIRP dBm)");
+	printf("%12s\t%15s\t\t%16s\n", "IEEE-Channel", "Center-freq-MHz", "(@Bandwidth MHz, Target EIRP dBm - Max EIRP dBm)");
 
 	/* XXX: add target output power */
 	for (i = 0; i < ARRAY_SIZE(center_freqs_khz); i++) {
 		center_freq_khz = center_freqs_khz[i];
-		r = test_freq_khz_on_rd(center_freq_khz, rd);
-		if (!r)
-			printf("\n");
+		for (j = 0; j < ARRAY_SIZE(target_eirps_mbm); j++) {
+			target_eirp_mbm = target_eirps_mbm[j];
+			r = test_freq_khz_on_rd(center_freq_khz,
+						target_eirp_mbm,
+						rd);
+			if (!r)
+				printf("\n");
+		}
 	}
 }
 
