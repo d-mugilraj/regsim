@@ -3,6 +3,8 @@
 #include <stdbool.h>
 
 #include "regulatory.h"
+#include "wifi-dev.h"
+#include "core.h"
 
 /* We keep a static world regulatory domain in case of the absence of CRDA */
 static const struct ieee80211_regdomain world_regdom = {
@@ -423,16 +425,27 @@ static void test_regdom(const struct ieee80211_regdomain *rd)
 	__test_regdom(rd);
 }
 
+void regulatory_update(struct wifi_dev *wdev, enum ieee80211_reg_initiator initiator)
+{
+	/* XXX */
+}
+
 int regulatory_init(void)
 {
 	const struct ieee80211_regdomain *regdoms[] = {
 		ieee80211_world_regdom,
 		&test_regdom_01,
 	};
-	int i;
+	int i, r;
 
 	for (i = 0; i < ARRAY_SIZE(regdoms); i++)
 		test_regdom(regdoms[i]);
+
+	r = probe_wifi_devices();
+	if (r)
+		return r;
+
+	remove_wifi_devices();
 
 	return 0;
 }

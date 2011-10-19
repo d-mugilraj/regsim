@@ -8,6 +8,7 @@
 #include "ieee80211.h"
 #include "list.h"
 #include "c-hacks.h"
+#include "wifi-dev.h"
 
 /*
  * regulatory support structures
@@ -127,5 +128,6 @@ struct ieee80211_regdomain {
 
 int regulatory_init(void);
 int ieee80211_frequency_to_channel(int freq);
+void regulatory_update(struct wifi_dev *dev, enum ieee80211_reg_initiator);
 
 #endif
