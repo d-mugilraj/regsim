@@ -423,7 +423,7 @@ static void test_regdom(const struct ieee80211_regdomain *rd)
 	__test_regdom(rd);
 }
 
-int main(void)
+int regulatory_init(void)
 {
 	const struct ieee80211_regdomain *regdoms[] = {
 		ieee80211_world_regdom,

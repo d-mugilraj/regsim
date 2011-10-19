@@ -125,6 +125,7 @@ struct ieee80211_regdomain {
 	.flags = reg_flags,				\
 }
 
+int regulatory_init(void);
 int ieee80211_frequency_to_channel(int freq);
 
 #endif
