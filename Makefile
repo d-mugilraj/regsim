@@ -1,5 +1,5 @@
-regsim: regulatory.h ieee80211.h util.c main.c
-	gcc -Wall -o regsim util.c main.c
+regsim: regulatory.h ieee80211.h util.c reg.c
+	gcc -Wall -o regsim util.c reg.c
 
 all: regsim
 
