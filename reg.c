@@ -54,12 +54,6 @@ static const struct ieee80211_regdomain test_regdom_01 = {
 	}
 };
 
-/*
- * XXX: create a regulatory domain and change structure to enable
- * to specifify that at a given bandwidth you can use a specific
- * output EIRP but at another bandwidth there is another max EIRP.
- */
-
 static const struct ieee80211_regdomain *ieee80211_world_regdom =
 	&world_regdom;
 
@@ -398,7 +392,6 @@ static void __test_regdom(const struct ieee80211_regdomain *rd)
 	       "Target EIRP dBm",
 	       "(@Bandwidth MHz, Max EIRP dBm)");
 
-	/* XXX: add target output power */
 	for (i = 0; i < ARRAY_SIZE(center_freqs_khz); i++) {
 		center_freq_khz = center_freqs_khz[i];
 		for (j = 0; j < ARRAY_SIZE(target_eirps_mbm); j++) {
