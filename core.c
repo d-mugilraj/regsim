@@ -4,8 +4,10 @@
 #include "regulatory.h"
 #include "core.h"
 
+extern struct device acme;
+
 struct device *devices[] = {
-	NULL,
+	&acme,
 };
 
 int probe_wifi_devices(void)
