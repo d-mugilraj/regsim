@@ -10,7 +10,22 @@ struct device *devices[] = {
 	&acme,
 };
 
-int probe_wifi_devices(void)
+static void remove_wifi_devices(void)
+{
+	unsigned int i;
+	struct device *dev = NULL;
+
+	for (i=0; i < ARRAY_SIZE(devices); i++) {
+		dev = devices[i];
+		if (!dev)
+			break;
+		if (!dev->registered)
+			continue;
+		dev->ops->remove(dev, i);
+	}
+}
+
+static int probe_wifi_devices(void)
 {
 	unsigned int i;
 	int r;
@@ -29,21 +44,6 @@ int probe_wifi_devices(void)
 fail:
 	remove_wifi_devices();
 	return r;
-}
-
-void remove_wifi_devices(void)
-{
-	unsigned int i;
-	struct device *dev = NULL;
-
-	for (i=0; i < ARRAY_SIZE(devices); i++) {
-		dev = devices[i];
-		if (!dev)
-			break;
-		if (!dev->registered)
-			continue;
-		dev->ops->remove(dev, i);
-	}
 }
 
 struct wifi_dev *wdev_new(void)
