@@ -20,7 +20,7 @@ struct dev_ops {
 struct wifi_dev {
 	struct device *dev;
 	unsigned int idx;
-	struct ieee80211_supported_band *bands[IEEE80211_NUM_BANDS];
+	struct ieee80211_dev_regulatory reg;
 };
 
 struct device {
@@ -28,7 +28,5 @@ struct device {
 	struct dev_ops *ops;
 	struct wifi_dev *wdev;
 };
-
-void regulatory_update(struct wifi_dev *dev, enum ieee80211_reg_initiator);
 
 #endif /* __WIFI_DEV_H */

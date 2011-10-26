@@ -91,19 +91,27 @@ struct ieee80211_supported_band acme_sband_5g = {
 	.n_channels = ARRAY_SIZE(acme_5ghz_chantable),
 };
 
-static void acme_setup_band(struct wifi_dev *wdev,
+static void acme_setup_band(struct ieee80211_dev_regulatory *reg,
 			    enum ieee80211_band band)
 {
 	switch (band) {
 	case IEEE80211_BAND_2GHZ:
-		wdev->bands[band] = &acme_sband_2g;
+		reg->bands[band] = &acme_sband_2g;
 		break;
 	case IEEE80211_BAND_5GHZ:
-		wdev->bands[band] = &acme_sband_5g;
+		reg->bands[band] = &acme_sband_5g;
 		break;
 	default:
 		break;
 	}
+}
+
+static void acme_setup_reg(struct wifi_dev *wdev)
+{
+	struct ieee80211_dev_regulatory *reg = &wdev->reg;
+
+	acme_setup_band(reg, IEEE80211_BAND_2GHZ);
+	acme_setup_band(reg, IEEE80211_BAND_5GHZ);
 }
 
 static int acme_probe(struct device *dev, unsigned int idx)
@@ -119,8 +127,7 @@ static int acme_probe(struct device *dev, unsigned int idx)
 
 	wdev->idx = idx;
 
-	acme_setup_band(wdev, IEEE80211_BAND_2GHZ);
-	acme_setup_band(wdev, IEEE80211_BAND_5GHZ);
+	acme_setup_reg(wdev);
 
 	register_wifi_dev(wdev);
 

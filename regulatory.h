@@ -180,6 +180,51 @@ struct ieee80211_regdomain {
 	struct ieee80211_reg_rule reg_rules[];
 };
 
+/**
+ * enum ieee80211_dev_reg_flags - device regulatory flags
+ *
+ * @IEEE80211_REGDEV_CUSTOM_REGULATORY:  tells us the driver for this device
+ *	has its own custom regulatory domain and cannot identify the
+ *	ISO / IEC 3166 alpha2 it belongs to. When this is enabled
+ *	we will disregard the first regulatory hint (when the
+ *	initiator is %REGDOM_SET_BY_CORE).
+ * @IEEE80211_REGDEV_STRICT_REGULATORY: tells us the driver for this device will
+ *	ignore regulatory domain settings until it gets its own regulatory
+ *	domain via its regulatory_hint() unless the regulatory hint is
+ *	from a country IE. After its gets its own regulatory domain it will
+ *	only allow further regulatory domain settings to further enhance
+ *	compliance. For example if channel 13 and 14 are disabled by this
+ *	regulatory domain no user regulatory domain can enable these channels
+ *	at a later time. This can be used for devices which do not have
+ *	calibration information guaranteed for frequencies or settings
+ *	outside of its regulatory domain.
+ * @IEEE80211_REGDEV_DISABLE_BEACON_HINTS: enable this if your driver needs to
+ *	ensure that passive scan flags and beaconing flags may not be lifted by
+ *	cfg80211 due to regulatory beacon hints. For more information on beacon
+ *	hints read the documenation for regulatory_hint_found_beacon()
+ */
+enum ieee80211_dev_reg_flags {
+	IEEE80211_REGD_CUSTOM_REGULATORY            = 1<<0,
+	IEEE80211_REGD_STRICT_REGULATORY            = 1<<1,
+	IEEE80211_REGD_DISABLE_BEACON_HINTS         = 1<<2,
+};
+
+/**
+ * struct ieee80211_dev_regulatory - 802.11 device specific regulatory data
+ *
+ * This structure provides regulatory data that is specific to an
+ * 802.11 device.
+ *
+ * @regd: pointer to the device's own regulatory domain if one set
+ * @bands: set of supported bands.
+ * @flags: modifiers to regulatory behaviour
+ */
+struct ieee80211_dev_regulatory {
+	uint32_t flags;
+	struct ieee80211_regdomain *regd;
+	struct ieee80211_supported_band *bands[IEEE80211_NUM_BANDS];
+};
+
 #define MHZ_TO_KHZ(freq) ((freq) * 1000)
 #define KHZ_TO_MHZ(freq) ((freq) / 1000)
 #define DBI_TO_MBI(gain) ((gain) * 100)
@@ -199,5 +244,7 @@ struct ieee80211_regdomain {
 
 int regulatory_init(void);
 int ieee80211_frequency_to_channel(int freq);
+void regulatory_update(struct ieee80211_dev_regulatory *reg,
+		       enum ieee80211_reg_initiator);
 
 #endif

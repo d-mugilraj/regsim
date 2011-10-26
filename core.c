@@ -64,7 +64,7 @@ void wdev_free(struct wifi_dev *wdev)
 
 void register_wifi_dev(struct wifi_dev *wdev)
 {
-	regulatory_update(wdev, IEEE80211_REGDOM_SET_BY_CORE);
+	regulatory_update(&wdev->reg, IEEE80211_REGDOM_SET_BY_CORE);
 
 	printf("wlan%d registered\n", wdev->idx);
 }
@@ -76,6 +76,11 @@ int main(void)
 	r = regulatory_init();
 	if (r)
 		return r;
+	r = probe_wifi_devices();
+	if (r)
+		return r;
+
+	remove_wifi_devices();
 
 	return 0;
 }
