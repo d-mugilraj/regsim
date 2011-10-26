@@ -2,6 +2,24 @@
 #define __IEEE80211_H
 
 /**
+ * enum ieee80211_band - supported frequency bands
+ *
+ * The bands are assigned this way because the supported
+ * bitrates differ in these bands.
+ *
+ * @IEEE80211_BAND_2GHZ: 2.4GHz ISM band
+ * @IEEE80211_BAND_5GHZ: around 5GHz band (4.9-5.7)
+ * @IEEE80211_NUM_BANDS: number of defined bands
+ */
+enum ieee80211_band {
+	IEEE80211_BAND_2GHZ,
+	IEEE80211_BAND_5GHZ,
+
+	/* keep last */
+	IEEE80211_NUM_BANDS,
+};
+
+/**
  * enum ieee80211_initiator - Indicates the initiator of a reg domain request
  * @IEEE80211_REGDOM_SET_BY_CORE: Core queried CRDA for a dynamic world
  * 	regulatory domain.

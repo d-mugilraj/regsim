@@ -4,27 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "ieee80211.h"
+
 /*
  * Device driver channel definition templates for an 802.11 subsystem.
  */
-
-/**
- * enum ieee80211_band - supported frequency bands
- *
- * The bands are assigned this way because the supported
- * bitrates differ in these bands.
- *
- * @IEEE80211_BAND_2GHZ: 2.4GHz ISM band
- * @IEEE80211_BAND_5GHZ: around 5GHz band (4.9-5.7)
- * @IEEE80211_NUM_BANDS: number of defined bands
- */
-enum ieee80211_band {
-	IEEE80211_BAND_2GHZ,
-	IEEE80211_BAND_5GHZ,
-
-	/* keep last */
-	IEEE80211_NUM_BANDS,
-};
 
 /**
  * enum ieee80211_channel_flags - channel flags
