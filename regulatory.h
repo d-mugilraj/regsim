@@ -255,6 +255,7 @@ int reglib_freq_info(uint32_t center_freq,
 		     int target_eirp_mbm,
 		     uint32_t desired_bw_khz,
 		     const struct ieee80211_reg_rule **reg_rule);
+const struct ieee80211_regdomain *reglib_get_regd(void);
 bool reglib_is_valid_rd(const struct ieee80211_regdomain *rd);
 void reglib_print_regdomain(const struct ieee80211_regdomain *rd);
 void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,

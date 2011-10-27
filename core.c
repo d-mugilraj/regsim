@@ -75,11 +75,12 @@ int main(void)
 {
 	int r;
 
-	test_regdoms();
-
 	r = regulatory_init();
 	if (r)
 		return r;
+
+	test_regdoms();
+
 	r = probe_wifi_devices();
 	if (r)
 		return r;

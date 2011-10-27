@@ -230,6 +230,11 @@ int reglib_freq_info(uint32_t center_freq,
 				     NULL);
 }
 
+const struct ieee80211_regdomain *reglib_get_regd(void)
+{
+	return regcore->regd;
+}
+
 static void print_rd_rules(const struct ieee80211_regdomain *rd)
 {
 	unsigned int i;

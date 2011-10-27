@@ -180,6 +180,8 @@ void test_regdoms(void)
 	};
 	int i;
 
+	test_regdom(reglib_get_regd());
+
 	for (i = 0; i < ARRAY_SIZE(regdoms); i++)
 		test_regdom(regdoms[i]);
 }
