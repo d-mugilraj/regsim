@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <stdbool.h>
 
-#include "regulatory.h"
+#include "reglib.h"
 #include "reg.h"
 
 int regulatory_init(void)

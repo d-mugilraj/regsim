@@ -2,7 +2,7 @@
 #define __CORE_H
 
 #include "wifi-dev.h"
-#include "regulatory.h"
+#include "reglib.h"
 
 struct wifi_dev *wdev_new(void);
 void wdev_free(struct wifi_dev *wdev);

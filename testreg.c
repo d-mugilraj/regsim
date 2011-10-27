@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <stdbool.h>
 
-#include "regulatory.h"
+#include "reglib.h"
 
 /*
  * Purpose: test a regulatory domain with overlapping frequency

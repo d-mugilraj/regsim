@@ -1,5 +1,5 @@
-#ifndef __NET_REGULATORY_H
-#define __NET_REGULATORY_H
+#ifndef __REGLIB_H
+#define __REGLIB_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -262,4 +262,4 @@ void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
 			  enum ieee80211_reg_initiator);
 int reglib_core_init();
 
-#endif
+#endif /* __REGLIB_H */

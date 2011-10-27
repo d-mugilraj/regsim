@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "regulatory.h"
+#include "reglib.h"
 
 /*
  * Device template for an 802.11 subsystem.

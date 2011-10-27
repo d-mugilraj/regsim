@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <stdbool.h>
 
-#include "regulatory.h"
+#include "reglib.h"
 
 /* We keep a static world regulatory domain in case of the absence of CRDA */
 static const struct ieee80211_regdomain world_regdom = {

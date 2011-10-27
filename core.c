@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "regulatory.h"
+#include "reglib.h"
 #include "reg.h"
 #include "core.h"
 #include "testreg.h"

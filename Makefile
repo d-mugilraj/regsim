@@ -1,4 +1,4 @@
-regsim: regulatory.h ieee80211.h reg.h testreg.h reglib.c core.c reg.c util.c \
+regsim: reglib.h ieee80211.h reg.h testreg.h reglib.c core.c reg.c util.c \
 	drivers/acme.c
 	gcc -Wall -I./ -Wall -o regsim \
 	testreg.c \
