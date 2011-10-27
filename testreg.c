@@ -62,7 +62,7 @@ static int test_freq_khz_on_rd(uint32_t center_freq_khz,
 			one_bw_works = true;
 
 			printf("%12d\t%15d\t\t%15d\t\t",
-			       ieee80211_frequency_to_channel(center_freq_mhz),
+			       reglib_frequency_to_channel(center_freq_mhz),
 			       center_freq_mhz,
 			       MBM_TO_DBM(target_eirp_mbm));
 		}

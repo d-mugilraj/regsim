@@ -62,6 +62,18 @@ struct ieee80211_regcore reg_core = {
 
 struct ieee80211_regcore *regcore = &reg_core;
 
+int reglib_frequency_to_channel(int freq)
+{
+	if (freq == 2484)
+		return 14;
+
+	if (freq < 2484)
+		return (freq - 2407) / 5;
+
+	/* FIXME: dot11ChannelStartingFactor (802.11-2007 17.3.8.3.2) */
+	return freq/5 - 1000;
+}
+
 bool is_world_regdom(const char *alpha2)
 {
 	if (!alpha2)

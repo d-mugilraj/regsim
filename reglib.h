@@ -244,7 +244,7 @@ struct ieee80211_dev_regulatory {
 	.flags = reg_flags,				\
 }
 
-int ieee80211_frequency_to_channel(int freq);
+int reglib_frequency_to_channel(int freq);
 
 int reglib_freq_info_regd(uint32_t center_freq,
 			  int target_eirp_mbm,
