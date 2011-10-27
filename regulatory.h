@@ -218,11 +218,13 @@ enum ieee80211_dev_reg_flags {
  * @regd: pointer to the device's own regulatory domain if one set
  * @bands: set of supported bands.
  * @flags: modifiers to regulatory behaviour
+ * @list: for inclusion as part of the regcore's dev_regd_list
  */
 struct ieee80211_dev_regulatory {
 	uint32_t flags;
 	struct ieee80211_regdomain *regd;
 	struct ieee80211_supported_band *bands[IEEE80211_NUM_BANDS];
+	struct dl_list list;
 };
 
 #define MHZ_TO_KHZ(freq) ((freq) * 1000)
@@ -242,9 +244,21 @@ struct ieee80211_dev_regulatory {
 	.flags = reg_flags,				\
 }
 
-int regulatory_init(void);
 int ieee80211_frequency_to_channel(int freq);
-void regulatory_update(struct ieee80211_dev_regulatory *reg,
-		       enum ieee80211_reg_initiator);
+
+int reglib_freq_info_regd(uint32_t center_freq,
+			  int target_eirp_mbm,
+			  uint32_t desired_bw_khz,
+			  const struct ieee80211_reg_rule **reg_rule,
+			  const struct ieee80211_regdomain *custom_regd);
+int reglib_freq_info(uint32_t center_freq,
+		     int target_eirp_mbm,
+		     uint32_t desired_bw_khz,
+		     const struct ieee80211_reg_rule **reg_rule);
+bool reglib_is_valid_rd(const struct ieee80211_regdomain *rd);
+void reglib_print_regdomain(const struct ieee80211_regdomain *rd);
+void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
+			  enum ieee80211_reg_initiator);
+int reglib_core_init();
 
 #endif

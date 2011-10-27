@@ -2,7 +2,9 @@
 #include <stdio.h>
 
 #include "regulatory.h"
+#include "reg.h"
 #include "core.h"
+#include "testreg.h"
 
 extern struct device acme;
 
@@ -64,7 +66,7 @@ void wdev_free(struct wifi_dev *wdev)
 
 void register_wifi_dev(struct wifi_dev *wdev)
 {
-	regulatory_update(&wdev->reg, IEEE80211_REGDOM_SET_BY_CORE);
+	reglib_regdev_update(&wdev->reg, IEEE80211_REGDOM_SET_BY_CORE);
 
 	printf("wlan%d registered\n", wdev->idx);
 }
@@ -72,6 +74,8 @@ void register_wifi_dev(struct wifi_dev *wdev)
 int main(void)
 {
 	int r;
+
+	test_regdoms();
 
 	r = regulatory_init();
 	if (r)
