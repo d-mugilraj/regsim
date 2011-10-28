@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "reglib.h"
 
@@ -60,9 +61,11 @@ static const struct ieee80211_regdomain world_regdom = {
  *	iterate over all devices.
  */
 struct ieee80211_regcore {
+	struct regcore_ops *ops;
 	const struct ieee80211_regdomain *regd;
 	const struct ieee80211_regdomain *world_regd;
 	struct regulatory_request *last_request;
+	char user_alpha2[2];
 	struct dl_list dev_regd_list;
 };
 
@@ -86,13 +89,38 @@ int reglib_frequency_to_channel(int freq)
 	return freq/5 - 1000;
 }
 
-bool is_world_regdom(const char *alpha2)
+bool reglib_is_world_regdom(const char *alpha2)
 {
 	if (!alpha2)
 		return false;
 	if (alpha2[0] == '0' && alpha2[1] == '0')
 		return true;
 	return false;
+}
+
+static int reg_copy_regd(const struct ieee80211_regdomain **dst_regd,
+			 const struct ieee80211_regdomain *src_regd)
+{
+	struct ieee80211_regdomain *regd;
+	int size_of_regd = 0;
+	unsigned int i;
+
+	size_of_regd = sizeof(struct ieee80211_regdomain) +
+	  ((src_regd->n_reg_rules + 1) * sizeof(struct ieee80211_reg_rule));
+
+	regd = malloc(size_of_regd);
+	if (!regd)
+		return -ENOMEM;
+	memset(regd, 0, size_of_regd);
+
+	memcpy(regd, src_regd, sizeof(struct ieee80211_regdomain));
+
+	for (i = 0; i < src_regd->n_reg_rules; i++)
+		memcpy(&regd->reg_rules[i], &src_regd->reg_rules[i],
+			sizeof(struct ieee80211_reg_rule));
+
+	*dst_regd = regd;
+	return 0;
 }
 
 /* Sanity check on a regulatory rule */
@@ -303,7 +331,7 @@ static void print_rd_rules(const struct ieee80211_regdomain *rd)
 
 void reglib_print_regdomain(const struct ieee80211_regdomain *rd)
 {
-	if (is_world_regdom(rd->alpha2))
+	if (reglib_is_world_regdom(rd->alpha2))
 		printf("World regulatory domain updated:\n");
 	else
 		printf("Regulatory domain changed to country: %c%c\n",
@@ -312,8 +340,150 @@ void reglib_print_regdomain(const struct ieee80211_regdomain *rd)
 	print_rd_rules(rd);
 }
 
+static void reg_set_request_processed(void)
+{
+	regcore->last_request->processed = true;
+	/* XXX deal with timeouts, may need a callback to wireless core */
+}
+
+/*
+ * Return value which can be used by ignore_request() to indicate
+ * it has been determined we should intersect two regulatory domains
+ */
+#define REG_INTERSECT	1
+
+/*
+ * This has the logic which determines when a new request
+ * should be ignored.
+ */
+static int ignore_request(struct ieee80211_dev_regulatory *reg,
+			  struct regulatory_request *pending_request)
+{
+	/* All initial requests are respected */
+	if (!regcore->last_request)
+		return 0;
+
+	switch (pending_request->initiator) {
+	case IEEE80211_REGDOM_SET_BY_CORE:
+		return 0;
+	/*
+	 * XXX: implement all the others through
+	 * a cleaner state machine.
+	 */
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+/**
+ * __regulatory_hint - hint to the wireless core a regulatory domain
+ * @reg: if the hint comes from country information from an AP, this
+ *	is required to be set to the device's regulatory data that
+ *	received the information.
+ * @pending_request: the regulatory request currently being processed
+ *
+ * The wireless subsystem can use this function to hint to the wireless core
+ * what it believes should be the current regulatory domain.
+ *
+ * Returns zero if all went fine, %-EALREADY if a regulatory domain had
+ * already been set or other standard error codes.
+ */
+static int __regulatory_hint(struct ieee80211_dev_regulatory *reg,
+			     struct regulatory_request *pending_request)
+{
+	bool intersect = false;
+	int r = 0;
+
+	r = ignore_request(reg, pending_request);
+
+	if (r == REG_INTERSECT) {
+		if (pending_request->initiator ==
+		    IEEE80211_REGDOM_SET_BY_DRIVER) {
+			r = reg_copy_regd(&reg->regd, regcore->regd);
+			if (r) {
+				free(pending_request);
+				return r;
+			}
+		}
+		intersect = true;
+	} else if (r) {
+		/*
+		 * If the regulatory domain being requested by the
+		 * driver has already been set just copy it to the
+		 * wiphy
+		 */
+		if (r == -EALREADY &&
+		    pending_request->initiator ==
+		    IEEE80211_REGDOM_SET_BY_DRIVER) {
+			r = reg_copy_regd(&reg->regd, regcore->regd);
+			if (r) {
+				free(pending_request);
+				return r;
+			}
+			r = -EALREADY;
+			goto new_request;
+		}
+		free(pending_request);
+		return r;
+	}
+
+new_request:
+	free(regcore->last_request);
+
+	regcore->last_request = pending_request;
+	regcore->last_request->intersect = intersect;
+
+	pending_request = NULL;
+
+	if (regcore->last_request->initiator == IEEE80211_REGDOM_SET_BY_USER) {
+		regcore->user_alpha2[0] = regcore->last_request->alpha2[0];
+		regcore->user_alpha2[1] = regcore->last_request->alpha2[1];
+	}
+
+	/* When r == REG_INTERSECT we do need to call CRDA */
+	if (r < 0) {
+		/*
+		 * Since CRDA will not be called in this case as we already
+		 * have applied the requested regulatory domain before we just
+		 * inform userspace we have processed the request
+		 */
+		if (r == -EALREADY) {
+			regcore->ops->send_reg_change_event(regcore->last_request);
+			reg_set_request_processed();
+		}
+		return r;
+	}
+
+	return regcore->ops->call_crda(regcore->last_request->alpha2);
+}
+
+/* This processes *all* regulatory hints */
+void reglib_process_hint(struct regulatory_request *reg_request)
+{
+	int r = 0;
+	struct ieee80211_dev_regulatory *reg = reg_request->reg;
+	enum ieee80211_reg_initiator initiator = reg_request->initiator;
+
+	BUG_ON(!reg_request->alpha2);
+
+	if (reg_request->initiator == IEEE80211_REGDOM_SET_BY_DRIVER &&
+	    !reg) {
+		free(reg_request);
+		return;
+	}
+
+	r = __regulatory_hint(reg, reg_request);
+	/* This is required so that the orig_* parameters are saved */
+	if (r == -EALREADY && reg &&
+	    reg->flags & IEEE80211_REGD_STRICT_REGULATORY) {
+		reglib_regdev_update(reg, initiator);
+		return;
+	}
+}
+
+
 #ifdef CONFIG_REGLIB_DEBUG
-static const char *reglib_initiator_name(enum nl80211_reg_initiator initiator)
+static const char *reglib_initiator_name(enum ieee80211_reg_initiator initiator)
 {
 	switch (initiator) {
 	case IEEE80211_REGDOM_SET_BY_CORE:
@@ -507,7 +677,7 @@ static bool reglib_dev_ignores_update(struct ieee80211_dev_regulatory *reg,
 	 */
 	if (reg->flags & IEEE80211_REGD_STRICT_REGULATORY && !reg->regd &&
 	    initiator != IEEE80211_REGDOM_SET_BY_COUNTRY_IE &&
-	    !is_world_regdom(regcore->last_request->alpha2)) {
+	    !reglib_is_world_regdom(regcore->last_request->alpha2)) {
 		REG_DBG_PRINT("Ignoring regulatory request %s "
 			      "since the driver requires its own regulatory "
 			      "domain to be set first\n",
@@ -533,9 +703,10 @@ void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
 	}
 }
 
-int reglib_core_init(void)
+int reglib_core_init(struct regcore_ops *ops)
 {
 	dl_list_init(&regcore->dev_regd_list);
+	regcore->ops = ops;
 
 	return 0;
 }

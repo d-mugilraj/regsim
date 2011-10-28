@@ -181,7 +181,7 @@ enum ieee80211_dev_reg_flags {
  */
 struct ieee80211_dev_regulatory {
 	uint32_t flags;
-	struct ieee80211_regdomain *regd;
+	const struct ieee80211_regdomain *regd;
 	struct ieee80211_supported_band *bands[IEEE80211_NUM_BANDS];
 	struct dl_list list;
 };
@@ -227,6 +227,11 @@ struct regulatory_request {
 	struct dl_list list;
 };
 
+struct regcore_ops {
+	int (*call_crda)(const char *alpha2);
+	void (*send_reg_change_event)(struct regulatory_request *request);
+};
+
 #define MHZ_TO_KHZ(freq) ((freq) * 1000)
 #define KHZ_TO_MHZ(freq) ((freq) / 1000)
 #define DBI_TO_MBI(gain) ((gain) * 100)
@@ -245,6 +250,7 @@ struct regulatory_request {
 }
 
 int reglib_frequency_to_channel(int freq);
+bool reglib_is_world_regdom(const char *alpha2);
 
 int reglib_freq_info_regd(struct ieee80211_dev_regulatory *reg,
 			  uint32_t center_freq,
@@ -260,8 +266,9 @@ int reglib_freq_info(struct ieee80211_dev_regulatory *reg,
 const struct ieee80211_regdomain *reglib_get_regd(void);
 bool reglib_is_valid_rd(const struct ieee80211_regdomain *rd);
 void reglib_print_regdomain(const struct ieee80211_regdomain *rd);
+void reglib_process_hint(struct regulatory_request *reg_request);
 void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
 			  enum ieee80211_reg_initiator);
-int reglib_core_init();
+int reglib_core_init(struct regcore_ops *ops);
 
 #endif /* __REGLIB_H */
