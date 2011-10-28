@@ -43,7 +43,8 @@ static int test_freq_khz_on_rd(uint32_t center_freq_khz,
 
 	for (x = 0; x < ARRAY_SIZE(desired_bws_khz); x++) {
 		desired_bw_khz = desired_bws_khz[x];
-		r = reglib_freq_info_regd(center_freq_khz,
+		r = reglib_freq_info_regd(NULL,
+					  center_freq_khz,
 					  target_eirp_mbm,
 					  desired_bw_khz,
 					  &reg_rule,

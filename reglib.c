@@ -1,8 +1,18 @@
+#define KBUILD_MODNAME "reglib"
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <stdio.h>
 #include <errno.h>
 #include <stdbool.h>
 
 #include "reglib.h"
+
+#ifdef CONFIG_REGLIB_DEBUG
+#define REG_DBG_PRINT(format, args...)			\
+	printf(pr_fmt(format), ##args)
+#else
+#define REG_DBG_PRINT(args...)
+#endif /* CONFIG_REGLIB_DEBUG */
 
 /* We keep a static world regulatory domain in case of the absence of CRDA */
 static const struct ieee80211_regdomain world_regdom = {
@@ -52,12 +62,14 @@ static const struct ieee80211_regdomain world_regdom = {
 struct ieee80211_regcore {
 	const struct ieee80211_regdomain *regd;
 	const struct ieee80211_regdomain *world_regd;
+	struct regulatory_request *last_request;
 	struct dl_list dev_regd_list;
 };
 
 struct ieee80211_regcore reg_core = {
 	.regd = &world_regdom,
 	.world_regd = &world_regdom,
+	.last_request = NULL,
 };
 
 struct ieee80211_regcore *regcore = &reg_core;
@@ -171,7 +183,8 @@ static bool freq_in_rule_band(const struct ieee80211_freq_range *freq_range,
 #undef ONE_GHZ_IN_KHZ
 }
 
-int reglib_freq_info_regd(uint32_t center_freq,
+int reglib_freq_info_regd(struct ieee80211_dev_regulatory *reg,
+			  uint32_t center_freq,
 			  int target_eirp_mbm,
 			  uint32_t desired_bw_khz,
 			  const struct ieee80211_reg_rule **reg_rule,
@@ -188,10 +201,15 @@ int reglib_freq_info_regd(uint32_t center_freq,
 	regd = custom_regd ? custom_regd : regcore->world_regd;
 
 	/*
-	 * XXX: Follow the device's regulatory domain, if present, unless a
+	 * Follow the device's regulatory domain, if present, unless a
 	 * country IE has been processed or a user wants to help complaince
-	 * further
+	 * further.
 	 */
+	if (!custom_regd &&
+	    regcore->last_request->initiator != IEEE80211_REGDOM_SET_BY_COUNTRY_IE &&
+	    regcore->last_request->initiator != IEEE80211_REGDOM_SET_BY_USER &&
+	    reg->regd)
+		regd = reg->regd;
 
 	if (!regd)
 		return -EINVAL;
@@ -230,12 +248,14 @@ int reglib_freq_info_regd(uint32_t center_freq,
 	return -EINVAL;
 }
 
-int reglib_freq_info(uint32_t center_freq,
+int reglib_freq_info(struct ieee80211_dev_regulatory *reg,
+		     uint32_t center_freq,
 		     int target_eirp_mbm,
 		     uint32_t desired_bw_khz,
 		     const struct ieee80211_reg_rule **reg_rule)
 {
-	return reglib_freq_info_regd(center_freq,
+	return reglib_freq_info_regd(reg,
+				     center_freq,
 				     target_eirp_mbm,
 				     desired_bw_khz,
 				     reg_rule,
@@ -292,16 +312,230 @@ void reglib_print_regdomain(const struct ieee80211_regdomain *rd)
 	print_rd_rules(rd);
 }
 
+#ifdef CONFIG_REGLIB_DEBUG
+static const char *reglib_initiator_name(enum nl80211_reg_initiator initiator)
+{
+	switch (initiator) {
+	case IEEE80211_REGDOM_SET_BY_CORE:
+		return "Set by core";
+	case IEEE80211_REGDOM_SET_BY_USER:
+		return "Set by user";
+	case IEEE80211_REGDOM_SET_BY_DRIVER:
+		return "Set by driver";
+	case IEEE80211_REGDOM_SET_BY_COUNTRY_IE:
+		return "Set by country IE";
+	default:
+		WARN_ON(1);
+		return "Set by bug";
+	}
+}
+
+static void chan_reg_rule_print_dbg(struct ieee80211_channel *chan,
+				    uint32_t desired_bw_khz,
+				    const struct ieee80211_reg_rule *reg_rule)
+{
+	const struct ieee80211_power_rule *power_rule;
+	const struct ieee80211_freq_range *freq_range;
+	char max_antenna_gain[32];
+
+	power_rule = &reg_rule->power_rule;
+	freq_range = &reg_rule->freq_range;
+
+	if (!power_rule->max_antenna_gain)
+		snprintf(max_antenna_gain, 32, "N/A");
+	else
+		snprintf(max_antenna_gain, 32, "%d", power_rule->max_antenna_gain);
+
+	REG_DBG_PRINT("Updating information on frequency %d MHz "
+		      "for a %d MHz width channel with regulatory rule:\n",
+		      chan->center_freq,
+		      KHZ_TO_MHZ(desired_bw_khz));
+
+	REG_DBG_PRINT("%d KHz - %d KHz @ %d KHz), (%s mBi, %d mBm)\n",
+		      freq_range->start_freq_khz,
+		      freq_range->end_freq_khz,
+		      freq_range->max_bandwidth_khz,
+		      max_antenna_gain,
+		      power_rule->max_eirp);
+}
+#else
+static void chan_reg_rule_print_dbg(struct ieee80211_channel *chan,
+				    uint32_t desired_bw_khz,
+				    const struct ieee80211_reg_rule *reg_rule)
+{
+	return;
+}
+#endif /* CONFIG_REGLIB_DEBUG */
+
+/*
+ * Note that right now we assume the desired channel bandwidth
+ * is always 20 MHz for each individual channel (HT40 uses 20 MHz
+ * per channel, the primary and the extension channel). To support
+ * smaller custom bandwidths such as 5 MHz or 10 MHz we'll need a
+ * new ieee80211_channel.target_bw and re run the regulatory check
+ * on the wiphy with the target_bw specified. Then we can simply use
+ * that below for the desired_bw_khz below.
+ */
+static void reglib_handle_channel(struct ieee80211_dev_regulatory *reg,
+				  enum ieee80211_reg_initiator initiator,
+				  enum ieee80211_band band,
+				  unsigned int chan_idx)
+{
+	int r;
+	uint32_t flags, bw_flags = 0;
+	uint32_t desired_bw_khz = MHZ_TO_KHZ(20);
+	const struct ieee80211_reg_rule *reg_rule = NULL;
+	const struct ieee80211_power_rule *power_rule = NULL;
+	const struct ieee80211_freq_range *freq_range = NULL;
+	struct ieee80211_supported_band *sband;
+	struct ieee80211_channel *chan;
+	struct ieee80211_dev_regulatory *request_reg= NULL;
+
+	request_reg = regcore->last_request->reg;
+
+	sband = reg->bands[band];
+	BUG_ON(chan_idx >= sband->n_channels);
+	chan = &sband->channels[chan_idx];
+
+	flags = chan->orig_flags;
+
+	/*
+	 * XXX: add support for keeping track of target EIRP and
+	 * cache that into the ieee80211_channel data structure.
+	 * This will require updating the target EIRP on any power
+	 * change if want to optimize for seeking the best rule
+	 * depending on both target power and bandwidth. For now use
+	 * an arbitrary max high value.
+	 */
+	r = reglib_freq_info(reg,
+			     MHZ_TO_KHZ(chan->center_freq),
+			     DBM_TO_MBM(31.5),
+			     desired_bw_khz,
+			     &reg_rule);
+
+	if (r) {
+		/*
+		 * We will disable all channels that do not match our
+		 * received regulatory rule unless the hint is coming
+		 * from a Country IE and the Country IE had no information
+		 * about a band. The IEEE 802.11 spec allows for an AP
+		 * to send only a subset of the regulatory rules allowed,
+		 * so an AP in the US that only supports 2.4 GHz may only send
+		 * a country IE with information for the 2.4 GHz band
+		 * while 5 GHz is still supported.
+		 */
+		if (initiator == IEEE80211_REGDOM_SET_BY_COUNTRY_IE &&
+		    r == -ERANGE)
+			return;
+
+		REG_DBG_PRINT("Disabling freq %d MHz\n", chan->center_freq);
+		chan->flags = IEEE80211_CHAN_DISABLED;
+		return;
+	}
+
+	chan_reg_rule_print_dbg(chan, desired_bw_khz, reg_rule);
+
+	power_rule = &reg_rule->power_rule;
+	freq_range = &reg_rule->freq_range;
+
+	if (freq_range->max_bandwidth_khz < MHZ_TO_KHZ(40))
+		bw_flags = IEEE80211_CHAN_NO_HT40;
+
+	if (regcore->last_request->initiator == IEEE80211_REGDOM_SET_BY_DRIVER &&
+	    request_reg && request_reg == reg &&
+	    request_reg->flags & IEEE80211_REGD_STRICT_REGULATORY) {
+		/*
+		 * This guarantees the driver's requested regulatory domain
+		 * will always be used as a base for further regulatory
+		 * settings
+		 */
+		chan->flags = chan->orig_flags = reg_rule->flags | bw_flags;
+		chan->max_antenna_gain = chan->orig_mag =
+			(int) MBI_TO_DBI(power_rule->max_antenna_gain);
+		chan->max_power = chan->orig_mpwr =
+			(int) MBM_TO_DBM(power_rule->max_eirp);
+		return;
+	}
+
+	chan->beacon_found = false;
+	chan->flags = flags | bw_flags | reg_rule->flags;
+	chan->max_antenna_gain = min(chan->orig_mag,
+		(int) MBI_TO_DBI(power_rule->max_antenna_gain));
+	if (chan->orig_mpwr)
+		chan->max_power = min(chan->orig_mpwr,
+			(int) MBM_TO_DBM(power_rule->max_eirp));
+	else
+		chan->max_power = (int) MBM_TO_DBM(power_rule->max_eirp);
+}
+
+static void reglib_handle_band(struct ieee80211_dev_regulatory *reg,
+			       enum ieee80211_band band,
+			       enum ieee80211_reg_initiator initiator)
+{
+	unsigned int i;
+	struct ieee80211_supported_band *sband;
+
+	BUG_ON(!reg->bands[band]);
+	sband = reg->bands[band];
+
+	for (i = 0; i < sband->n_channels; i++)
+		reglib_handle_channel(reg, initiator, band, i);
+}
+
+static bool reglib_dev_ignores_update(struct ieee80211_dev_regulatory *reg,
+				      enum ieee80211_reg_initiator initiator)
+{
+	if (!regcore->last_request) {
+		REG_DBG_PRINT("Ignoring regulatory request %s since "
+			      "last_request is not set\n",
+			      reglib_initiator_name(initiator));
+		return true;
+	}
+
+	if (initiator == IEEE80211_REGDOM_SET_BY_CORE &&
+	    reg->flags & IEEE80211_REGDOM_TYPE_CUSTOM_WORLD) {
+		REG_DBG_PRINT("Ignoring regulatory request %s "
+			      "since the driver uses its own custom "
+			      "regulatory domain\n",
+			      reglib_initiator_name(initiator));
+		return true;
+	}
+
+	/*
+	 * reg->regd will be set once the device has its own
+	 * desired regulatory domain set
+	 */
+	if (reg->flags & IEEE80211_REGD_STRICT_REGULATORY && !reg->regd &&
+	    initiator != IEEE80211_REGDOM_SET_BY_COUNTRY_IE &&
+	    !is_world_regdom(regcore->last_request->alpha2)) {
+		REG_DBG_PRINT("Ignoring regulatory request %s "
+			      "since the driver requires its own regulatory "
+			      "domain to be set first\n",
+			      reglib_initiator_name(initiator));
+		return true;
+	}
+	return false;
+}
+
+void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
+			  enum ieee80211_reg_initiator initiator)
+{
+	enum ieee80211_band band;
+
+	BUG_ON(!regcore->last_request);
+
+	if (reglib_dev_ignores_update(reg, initiator))
+		return;
+
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		if (reg->bands[band])
+			reglib_handle_band(reg, band, initiator);
+	}
+}
+
 int reglib_core_init(void)
 {
 	dl_list_init(&regcore->dev_regd_list);
 
 	return 0;
 }
-
-void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
-			  enum ieee80211_reg_initiator initiator)
-{
-	/* XXX */
-}
-
