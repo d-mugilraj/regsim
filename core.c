@@ -4,7 +4,6 @@
 #include "reglib.h"
 #include "reg.h"
 #include "core.h"
-#include "testreg.h"
 
 extern struct device acme;
 
@@ -79,7 +78,7 @@ int main(void)
 	if (r)
 		return r;
 
-	test_regdoms();
+	reg_core_test();
 
 	r = probe_wifi_devices();
 	if (r)

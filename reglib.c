@@ -59,6 +59,7 @@ static const struct ieee80211_regdomain world_regdom = {
  * @dev_regd_list: list of known registered 802.11 device's regulatory
  *	data. This is used by the regulatory library when it needs to
  *	iterate over all devices.
+ * @requests_list: list of regulatory requests
  */
 struct ieee80211_regcore {
 	struct regcore_ops *ops;
@@ -67,6 +68,7 @@ struct ieee80211_regcore {
 	struct regulatory_request *last_request;
 	char user_alpha2[2];
 	struct dl_list dev_regd_list;
+	struct dl_list requests_list;
 };
 
 struct ieee80211_regcore reg_core = {
@@ -410,7 +412,7 @@ static int __regulatory_hint(struct ieee80211_dev_regulatory *reg,
 		/*
 		 * If the regulatory domain being requested by the
 		 * driver has already been set just copy it to the
-		 * wiphy
+		 * device's regd
 		 */
 		if (r == -EALREADY &&
 		    pending_request->initiator ==
@@ -652,6 +654,27 @@ static void reglib_handle_band(struct ieee80211_dev_regulatory *reg,
 		reglib_handle_channel(reg, initiator, band, i);
 }
 
+void reglib_queue_request(struct regulatory_request *request)
+{
+	dl_list_add_tail(&regcore->requests_list, &request->list);
+}
+
+struct regulatory_request *reglib_next_request(void)
+{
+	struct regulatory_request *request, *tmp;
+
+	if (dl_list_empty(&regcore->requests_list))
+		return NULL;
+
+	dl_list_for_each_safe(request, tmp, &regcore->requests_list,
+			      struct regulatory_request, list) {
+		dl_list_del(&request->list);
+		return request;
+	}
+
+	return NULL;
+}
+
 static bool reglib_dev_ignores_update(struct ieee80211_dev_regulatory *reg,
 				      enum ieee80211_reg_initiator initiator)
 {
@@ -706,6 +729,7 @@ void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
 int reglib_core_init(struct regcore_ops *ops)
 {
 	dl_list_init(&regcore->dev_regd_list);
+	dl_list_init(&regcore->requests_list);
 	regcore->ops = ops;
 
 	return 0;

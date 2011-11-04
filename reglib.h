@@ -266,7 +266,11 @@ int reglib_freq_info(struct ieee80211_dev_regulatory *reg,
 const struct ieee80211_regdomain *reglib_get_regd(void);
 bool reglib_is_valid_rd(const struct ieee80211_regdomain *rd);
 void reglib_print_regdomain(const struct ieee80211_regdomain *rd);
+
+void reglib_queue_request(struct regulatory_request *request);
+struct regulatory_request *reglib_next_request(void);
 void reglib_process_hint(struct regulatory_request *reg_request);
+
 void reglib_regdev_update(struct ieee80211_dev_regulatory *reg,
 			  enum ieee80211_reg_initiator);
 int reglib_core_init(struct regcore_ops *ops);
