@@ -32,7 +32,15 @@ static inline void init_work(struct work *w)
 	pthread_cond_init(&w->cond, NULL);
 
 	pthread_create(&w->thread, NULL, run_work, (void *) w);
-	while(!w->ready);
+
+	while (1) {
+		pthread_mutex_lock(&w->mutex);
+		if (w->ready) {
+			pthread_mutex_unlock(&w->mutex);
+			break;
+		}
+		pthread_mutex_unlock(&w->mutex);
+	}
 }
 
 void schedule_work(struct work *w);
