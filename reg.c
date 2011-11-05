@@ -2,9 +2,9 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <string.h>
-#include <pthread.h>
 #include <time.h>
 
+#include <os/spinlock.h>
 #include <os/workqueue.h>
 
 #include "reglib.h"
@@ -12,7 +12,7 @@
 #include "testreg.h"
 
 pthread_mutex_t regcore_mutex;
-pthread_spinlock_t reg_requests_lock;
+static spinlock_t reg_requests_lock;
 
 void *reg_todo(void *arg);
 static DECLARE_WORK(reg_work, reg_todo);
@@ -49,15 +49,14 @@ static void reg_process_next_hint(void)
 {
 	struct regulatory_request *request;
 
-	pthread_spin_lock(&reg_requests_lock);
+	spin_lock(&reg_requests_lock);
 	request = reglib_next_request();
-	pthread_spin_unlock(&reg_requests_lock);
+	spin_unlock(&reg_requests_lock);
 
 	if (!request)
-		pthread_exit(NULL);
+		return;
 
 	reglib_process_hint(request);
-	pthread_exit(NULL);
 }
 
 static void reg_process_pending_hints(void)
@@ -92,9 +91,9 @@ static void queue_regulatory_request(struct regulatory_request *request)
 	 * We use spin_lock for reg_requests_lock as the core request
 	 * cannot hold a mutex as __init work in kernel barfs at that.
 	 */
-	pthread_spin_lock(&reg_requests_lock);
+	spin_lock(&reg_requests_lock);
 	reglib_queue_request(request);
-	pthread_spin_unlock(&reg_requests_lock);
+	spin_unlock(&reg_requests_lock);
 
 	schedule_work(&reg_work);
 }
@@ -133,23 +132,18 @@ int regulatory_init(void)
 	if (r)
 		return r;
 
-	r = pthread_spin_init(&reg_requests_lock, PTHREAD_PROCESS_SHARED);
-	if (r)
-		goto mutex_out;
+	spin_lock_init(&reg_requests_lock);
 
 	init_work(&reg_work);
 
 	r = reglib_core_init(&ops);
 	if (r)
-		goto out;
+		return r;
 
 	r = regulatory_hint_core("00");
 	if (r)
-		goto out;
+		return r;
 
-out:
-	pthread_spin_destroy(&reg_requests_lock);
-mutex_out:
 	pthread_mutex_destroy(&regcore_mutex);
 
 	return r;
