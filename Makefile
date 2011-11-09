@@ -1,9 +1,11 @@
 regsim: \
+	include/os/mutex.h \
 	include/os/spinlock.h \
 	include/os/workqueue.h \
 	c-hacks.h \
 	reglib.h ieee80211.h reg.h \
 	testreg.h \
+	kernel/mutex.c \
 	kernel/spinlock.c \
 	kernel/workqueue.c \
 	core.c \
@@ -11,6 +13,7 @@ regsim: \
 	drivers/acme.c
 	gcc -Wall -I./ -I./include/ -Wall -pthread \
 	-o regsim \
+	kernel/mutex.c \
 	kernel/spinlock.c \
 	kernel/workqueue.c \
 	testreg.c \

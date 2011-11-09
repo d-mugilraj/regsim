@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <os/mutex.h>
 #include <os/spinlock.h>
 #include <os/workqueue.h>
 
@@ -11,7 +12,7 @@
 #include "reg.h"
 #include "testreg.h"
 
-pthread_mutex_t regcore_mutex;
+static struct mutex regcore_mutex;
 static spinlock_t reg_requests_lock;
 
 void *reg_todo(void *arg);
@@ -23,7 +24,7 @@ static DECLARE_WORK(reg_work, reg_todo);
  */
 static int call_crda(const char *alpha2)
 {
-	pthread_mutex_lock(&regcore_mutex);
+	mutex_lock(&regcore_mutex);
 	if (!reglib_is_world_regdom((char *) alpha2))
 		printf("Calling CRDA for country: %c%c\n",
 		       alpha2[0], alpha2[1]);
@@ -31,7 +32,7 @@ static int call_crda(const char *alpha2)
 		printf("Calling CRDA to update world regulatory domain\n");
 
 	/* XXX: implement this */
-	pthread_mutex_unlock(&regcore_mutex);
+	mutex_unlock(&regcore_mutex);
 	return 0;
 }
 
@@ -62,9 +63,9 @@ static void reg_process_next_hint(void)
 static void reg_process_pending_hints(void)
 {
 
-	pthread_mutex_lock(&regcore_mutex);
+	mutex_lock(&regcore_mutex);
 	reg_process_next_hint();
-	pthread_mutex_unlock(&regcore_mutex);
+	mutex_unlock(&regcore_mutex);
 }
 
 static void reg_process_pending_beacon_hints(void)
@@ -128,10 +129,7 @@ int regulatory_init(void)
 {
 	int r = 0;
 
-	r = pthread_mutex_init(&regcore_mutex, NULL);
-	if (r)
-		return r;
-
+	mutex_init(&regcore_mutex);
 	spin_lock_init(&reg_requests_lock);
 
 	init_work(&reg_work);
@@ -144,14 +142,12 @@ int regulatory_init(void)
 	if (r)
 		return r;
 
-	pthread_mutex_destroy(&regcore_mutex);
-
 	return r;
 }
 
 void reg_core_test(void)
 {
-	pthread_mutex_lock(&regcore_mutex);
+	mutex_lock(&regcore_mutex);
 	test_regdoms();
-	pthread_mutex_unlock(&regcore_mutex);
+	mutex_unlock(&regcore_mutex);
 }
