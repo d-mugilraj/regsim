@@ -47,6 +47,16 @@ static const struct ieee80211_regdomain world_regdom = {
 	}
 };
 
+struct regulatory_request core_request_world = {
+	.reg = NULL,
+	.initiator = IEEE80211_REGDOM_SET_BY_CORE,
+	.alpha2[0] = '0',
+	.alpha2[1] = '0',
+	.intersect = false,
+	.processed = true,
+	.country_ie_env = ENVIRON_ANY,
+};
+
 /**
  * struct ieee80211_regcore - the regulatory core
  *
@@ -74,7 +84,7 @@ struct ieee80211_regcore {
 struct ieee80211_regcore reg_core = {
 	.regd = &world_regdom,
 	.world_regd = &world_regdom,
-	.last_request = NULL,
+	.last_request = &core_request_world,
 };
 
 struct ieee80211_regcore *regcore = &reg_core;
@@ -430,7 +440,8 @@ static int __regulatory_hint(struct ieee80211_dev_regulatory *reg,
 	}
 
 new_request:
-	free(regcore->last_request);
+	if (regcore->last_request != &core_request_world)
+		free(regcore->last_request);
 
 	regcore->last_request = pending_request;
 	regcore->last_request->intersect = intersect;
