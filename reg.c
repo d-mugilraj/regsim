@@ -8,7 +8,6 @@
 #include <os/spinlock.h>
 #include <os/workqueue.h>
 
-#include "reglib.h"
 #include "reg.h"
 #include "testreg.h"
 
@@ -124,6 +123,11 @@ static struct regcore_ops ops = {
 	.call_crda = call_crda,
 	.send_reg_change_event = send_reg_change_event,
 };
+
+void regdev_update(struct ieee80211_dev_regulatory *reg)
+{
+	reglib_regdev_update(reg, IEEE80211_REGDOM_SET_BY_CORE);
+}
 
 int regulatory_init(void)
 {

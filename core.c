@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "reglib.h"
 #include "reg.h"
 #include "core.h"
 
@@ -65,8 +64,7 @@ void wdev_free(struct wifi_dev *wdev)
 
 void register_wifi_dev(struct wifi_dev *wdev)
 {
-	reglib_regdev_update(&wdev->reg, IEEE80211_REGDOM_SET_BY_CORE);
-
+	regdev_update(&wdev->reg);
 	printf("wlan%d registered\n", wdev->idx);
 }
 
