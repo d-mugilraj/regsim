@@ -70,7 +70,7 @@ void register_wifi_dev(struct wifi_dev *wdev)
 
 int main(void)
 {
-	int r;
+	int r = 0;
 
 	r = regulatory_init();
 	if (r)
@@ -80,10 +80,12 @@ int main(void)
 
 	r = probe_wifi_devices();
 	if (r)
-		return r;
+		goto out;
 
 	remove_wifi_devices();
+
+out:
 	regulatory_exit();
 
-	return 0;
+	return r;
 }
