@@ -44,6 +44,7 @@ static inline void init_work(struct work *w)
 }
 
 void schedule_work(struct work *w);
+void cancel_work_sync(struct work *w);
 void init_work(struct work *w);
 
 #endif /* __WORKQUEUE_H */

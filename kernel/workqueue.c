@@ -14,6 +14,11 @@ void schedule_work(struct work *w)
 	pthread_mutex_unlock(&w->mutex);
 }
 
+void cancel_work_sync(struct work *w)
+{
+	pthread_exit(NULL);
+}
+
 void *run_work(void *arg)
 {
 	struct work *w;
