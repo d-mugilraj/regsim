@@ -83,6 +83,7 @@ int main(void)
 		return r;
 
 	remove_wifi_devices();
+	regulatory_exit();
 
 	return 0;
 }

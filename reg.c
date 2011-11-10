@@ -147,6 +147,14 @@ int regulatory_init(void)
 	return r;
 }
 
+void regulatory_exit(void)
+{
+	cancel_work_sync(&reg_work);
+
+	mutex_destroy(&regcore_mutex);
+	spin_lock_destroy(&reg_requests_lock);
+}
+
 void reg_core_test(void)
 {
 	mutex_lock(&regcore_mutex);
