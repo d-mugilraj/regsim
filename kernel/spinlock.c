@@ -10,6 +10,11 @@ void spin_lock_init(spinlock_t *lock)
 		BUG_ON(r);
 }
 
+void spin_lock_destroy(spinlock_t *lock)
+{
+	pthread_spin_destroy(lock);
+}
+
 void spin_lock(spinlock_t *lock)
 {
 	pthread_spin_lock(lock);
