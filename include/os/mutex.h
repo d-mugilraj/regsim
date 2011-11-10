@@ -8,6 +8,7 @@ struct mutex {
 };
 
 void mutex_init(struct mutex *lock);
+void mutex_destroy(struct mutex *lock);
 void mutex_lock(struct mutex *lock);
 void mutex_unlock(struct mutex *lock);
 

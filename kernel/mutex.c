@@ -10,6 +10,11 @@ void mutex_init(struct mutex *lock)
 		BUG_ON(r);
 }
 
+void mutex_destroy(struct mutex *lock)
+{
+	pthread_mutex_destroy(&lock->lock);
+}
+
 void mutex_lock(struct mutex *lock)
 {
 	pthread_mutex_lock(&lock->lock);
