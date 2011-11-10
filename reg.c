@@ -23,7 +23,6 @@ static DECLARE_WORK(reg_work, reg_todo);
  */
 static int call_crda(const char *alpha2)
 {
-	mutex_lock(&regcore_mutex);
 	if (!reglib_is_world_regdom((char *) alpha2))
 		printf("Calling CRDA for country: %c%c\n",
 		       alpha2[0], alpha2[1]);
@@ -31,7 +30,6 @@ static int call_crda(const char *alpha2)
 		printf("Calling CRDA to update world regulatory domain\n");
 
 	/* XXX: implement this */
-	mutex_unlock(&regcore_mutex);
 	return 0;
 }
 

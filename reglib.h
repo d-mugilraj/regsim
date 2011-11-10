@@ -227,6 +227,10 @@ struct regulatory_request {
 	struct dl_list list;
 };
 
+/*
+ * All ops are assumed to be called with a lock already held by your
+ * reglib user code to protect the regcore.
+ */
 struct regcore_ops {
 	int (*call_crda)(const char *alpha2);
 	void (*send_reg_change_event)(struct regulatory_request *request);
