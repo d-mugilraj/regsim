@@ -3,6 +3,7 @@
 
 #include "reg.h"
 #include "core.h"
+#include "comm.h"
 
 extern struct device acme;
 
@@ -72,9 +73,13 @@ int main(void)
 {
 	int r = 0;
 
-	r = regulatory_init();
+	r = comm_init();
 	if (r)
 		return r;
+
+	r = regulatory_init();
+	if (r)
+		goto comm_kill;
 
 	reg_core_test();
 
@@ -84,8 +89,17 @@ int main(void)
 
 	remove_wifi_devices();
 
+	/*
+	 * XXX: simulate a kernel/init.c and shutdown,
+	 * right now the life span of our simulated kernel
+	 * is to spawn here and then bail out. Lets do something
+	 * a bit more interesting here.
+	 */
+
 out:
 	regulatory_exit();
+comm_kill:
+	comm_stop();
 
 	return r;
 }

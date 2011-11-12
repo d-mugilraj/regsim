@@ -10,6 +10,7 @@
 
 #include "reg.h"
 #include "testreg.h"
+#include "comm.h"
 
 static struct mutex regcore_mutex;
 static spinlock_t reg_requests_lock;
@@ -29,7 +30,8 @@ static int call_crda(const char *alpha2)
 	else
 		printf("Calling CRDA to update world regulatory domain\n");
 
-	/* XXX: implement this */
+	comm_add_crda_request(alpha2);
+
 	return 0;
 }
 

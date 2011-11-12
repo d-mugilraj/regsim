@@ -9,6 +9,8 @@ regsim: \
 	kernel/spinlock.c \
 	kernel/workqueue.c \
 	core.c \
+	comm.c \
+	comm.h \
 	reglib.c reg.c \
 	drivers/acme.c
 	gcc -Wall -I./ -I./include/ -Wall -pthread \
@@ -17,7 +19,7 @@ regsim: \
 	kernel/spinlock.c \
 	kernel/workqueue.c \
 	testreg.c \
-	reglib.c core.c reg.c \
+	reglib.c core.c comm.c reg.c \
 	drivers/acme.c
 
 all: regsim
